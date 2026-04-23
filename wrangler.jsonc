@@ -1,0 +1,48 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "codex-backend-api",
+  "compatibility_date": "2025-09-02",
+  "compatibility_flags": ["nodejs_compat"],
+  "main": "./src/worker/worker.ts",
+  "workers_dev": true,
+  "routes": [
+    { "pattern": "codex-backend-api.com", "custom_domain": true }
+  ],
+  "assets": {
+    "binding": "ASSETS",
+    "directory": "./dist/client",
+    "not_found_handling": "single-page-application"
+  },
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "ACCOUNT_DO",
+        "class_name": "AccountDO"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": ["AccountDO"]
+    },
+    {
+      "tag": "v2",
+      "new_sqlite_classes": ["RegistryDO"]
+    },
+    {
+      "tag": "v3",
+      "deleted_classes": ["RegistryDO"]
+    }
+  ],
+  "kv_namespaces": [
+    {
+      "binding": "INDEX",
+      "id": "d87930f1482b463db75e0c93c3545150"
+    }
+  ],
+  "vars": {
+    "APP_HOSTNAME": "codex-backend-api.com",
+    "PROXY_URL": "https://codex-backend-api-proxy.fly.dev"
+  }
+}

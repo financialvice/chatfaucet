@@ -1,0 +1,316 @@
+# codex-backend-api
+
+An OpenAI-compatible Responses API backed by your ChatGPT plan.
+
+Sign in with ChatGPT → mint an API key → point any OpenAI SDK at the gateway. No OpenAI API key required.
+
+## Endpoint
+
+```text
+https://codex-backend-api.com
+```
+
+That base URL exposes these endpoints:
+
+```text
+POST /v1/responses   OpenAI Responses API (streaming SSE or JSON)
+GET  /v1/models      Available models
+GET  /v1/usage       Your ChatGPT-plan quota
+DELETE /v1/account   Delete your account and all stored data
+```
+
+Authenticate with `Authorization: Bearer <your_api_key>`. Your key identifies your account — nothing else to configure.
+
+Three request fields are required (even though they feel redundant):
+
+- `instructions` — must be present (empty string is fine)
+- `stream` — must be `true`
+- `store` — must be `false`
+
+## What this is NOT
+
+- Not a general-purpose OpenAI proxy. Only the Responses API shape is served.
+- Not a multi-tenant billing system. One ChatGPT account = one gateway; the quota is whatever your ChatGPT plan gives you.
+- Not for non-Responses endpoints: no `/v1/chat/completions`, no `/v1/images/generations` — use image generation as a **tool** on `/v1/responses`.
+
+## Agent setup
+
+Agents should start by fetching the raw docs:
+
+```bash
+curl -fsSL https://codex-backend-api.com/docs.md
+```
+
+Then run the CLI login, which creates the account if needed and mints an API key:
+
+```bash
+bunx codex-backend-api login --name agent
+eval "$(bunx codex-backend-api env)"
+```
+
+If the CLI asks for browser authorization, open the printed URL or approve the printed device code. After login, verify the gateway headlessly:
+
+```bash
+curl https://codex-backend-api.com/v1/models \
+  -H "Authorization: Bearer $CBA_API_KEY"
+```
+
+## curl
+
+The simplest thing that works.
+
+```bash
+curl -N https://codex-backend-api.com/v1/responses \
+  -H "Authorization: Bearer $CBA_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "gpt-5.4",
+    "instructions": "",
+    "input": [
+      {"type": "message", "role": "user",
+       "content": [{"type": "input_text", "text": "Say hi"}]}
+    ],
+    "stream": true,
+    "store": false
+  }'
+```
+
+The response is Server-Sent Events. Each `data:` line is a JSON event — watch for `response.output_text.delta` for streamed tokens and `response.completed` at the end.
+
+Image generation is a tool, not an endpoint:
+
+```bash
+curl -N https://codex-backend-api.com/v1/responses \
+  -H "Authorization: Bearer $CBA_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "gpt-5.4",
+    "instructions": "",
+    "input": [
+      {"type": "message", "role": "user",
+       "content": [{"type": "input_text", "text": "A corgi on a skateboard"}]}
+    ],
+    "tools": [{"type": "image_generation", "output_format": "png"}],
+    "stream": true,
+    "store": false
+  }'
+```
+
+The image comes back base64-encoded inside an `image_generation_call` output item.
+
+Usage:
+
+```bash
+curl https://codex-backend-api.com/v1/usage \
+  -H "Authorization: Bearer $CBA_API_KEY"
+```
+
+## CLI
+
+`bunx codex-backend-api` — sign in and mint keys from your terminal.
+
+```bash
+bunx codex-backend-api login
+bunx codex-backend-api login --name "laptop"
+bunx codex-backend-api login --no-read-auth-json   # skip auth.json, do device flow
+```
+
+By default `login` reads `~/.codex/auth.json` (the file the official Codex CLI writes) and uploads those tokens. If that file doesn't exist, it falls back to the ChatGPT device-code flow in your terminal. On success it prints your API key and saves config to `~/.codex-backend-api.json`.
+
+```bash
+eval "$(bunx codex-backend-api env)"
+```
+
+Prints shell exports for `OPENAI_API_KEY` and `OPENAI_BASE_URL` — drop into your shell rc file to make any OpenAI-compatible tool "just work."
+
+Self-host: set `CBA_HOST` to point at your own instance.
+
+```bash
+CBA_HOST=my-gateway.example.com bunx codex-backend-api login
+```
+
+Delete your account and all server-side data:
+
+```bash
+bunx codex-backend-api delete-account --yes
+```
+
+For headless API use, authenticate with any active API key. This deletes the account, stored ChatGPT tokens, all API key records, API key indexes, and web sessions:
+
+```bash
+curl -X DELETE https://codex-backend-api.com/v1/account \
+  -H "Authorization: Bearer $CBA_API_KEY"
+```
+
+## Vercel AI SDK
+
+`@ai-sdk/openai` works unmodified — point `baseURL` at the gateway.
+
+```bash
+bun add ai @ai-sdk/openai
+```
+
+```ts
+import { createOpenAI } from "@ai-sdk/openai"
+import { streamText } from "ai"
+
+const openai = createOpenAI({
+  apiKey: process.env.CBA_API_KEY!,
+  baseURL: "https://codex-backend-api.com/v1",
+})
+
+const result = streamText({
+  model: openai.responses("gpt-5.4"),
+  system: "",
+  prompt: "Say hi",
+  providerOptions: {
+    openai: { store: false, instructions: "" },
+  },
+})
+
+for await (const delta of result.textStream) {
+  process.stdout.write(delta)
+}
+```
+
+Image generation tool:
+
+```ts
+const result = await generateText({
+  model: openai.responses("gpt-5.4"),
+  prompt: "A corgi on a skateboard",
+  tools: {
+    image_generation: openai.tools.imageGeneration({ outputFormat: "png" }),
+  },
+  providerOptions: {
+    openai: { store: false, instructions: "" },
+  },
+})
+```
+
+The Codex backend requires `store: false` on every request. The Vercel AI SDK defaults to `store: true` — `providerOptions.openai.store: false` overrides it.
+
+## openai-node
+
+The official OpenAI SDK works unmodified — set `baseURL` and `apiKey`.
+
+```bash
+bun add openai
+```
+
+```ts
+import OpenAI from "openai"
+
+const client = new OpenAI({
+  apiKey: process.env.CBA_API_KEY!,
+  baseURL: "https://codex-backend-api.com/v1",
+})
+
+const stream = await client.responses.create({
+  model: "gpt-5.4",
+  instructions: "",
+  input: "Say hi",
+  stream: true,
+  store: false,
+})
+
+for await (const event of stream) {
+  if (event.type === "response.output_text.delta") {
+    process.stdout.write(event.delta)
+  }
+}
+```
+
+Python:
+
+```py
+from openai import OpenAI
+
+client = OpenAI(
+  api_key="cba_...",
+  base_url="https://codex-backend-api.com/v1",
+)
+
+stream = client.responses.create(
+  model="gpt-5.4",
+  instructions="",
+  input="Say hi",
+  stream=True,
+  store=False,
+)
+for event in stream:
+  if event.type == "response.output_text.delta":
+    print(event.delta, end="", flush=True)
+```
+
+## Cloudflare agents / Think
+
+`@cloudflare/think`:
+
+```ts
+import { Think } from "@cloudflare/think"
+import { createOpenAI } from "@ai-sdk/openai"
+import type { LanguageModel, ToolSet } from "ai"
+
+const openai = createOpenAI({
+  apiKey: "cba_...",
+  baseURL: "https://codex-backend-api.com/v1",
+})
+
+export class MyAgent extends Think<Env> {
+  getModel(): LanguageModel {
+    return openai.responses("gpt-5.4")
+  }
+
+  getTools(): ToolSet {
+    return {
+      image_generation: openai.tools.imageGeneration({ outputFormat: "png" }),
+    }
+  }
+
+  beforeTurn() {
+    return {
+      providerOptions: {
+        openai: { store: false, instructions: "" },
+      },
+    }
+  }
+}
+```
+
+Stash your API key in a Workers secret and pull it via `env.CBA_API_KEY`:
+
+```bash
+bunx wrangler secret put CBA_API_KEY
+```
+
+`@cloudflare/agents`:
+
+```ts
+import { Agent, routeAgentRequest } from "agents"
+import { streamText } from "ai"
+import { createOpenAI } from "@ai-sdk/openai"
+
+export class MyAgent extends Agent<Env> {
+  async onMessage(prompt: string) {
+    const openai = createOpenAI({
+      apiKey: this.env.CBA_API_KEY,
+      baseURL: "https://codex-backend-api.com/v1",
+    })
+    const result = streamText({
+      model: openai.responses("gpt-5.4"),
+      prompt,
+      providerOptions: { openai: { store: false, instructions: "" } },
+    })
+    return result.toTextStreamResponse()
+  }
+}
+```
+
+This works because traffic goes to `codex-backend-api.com` (a Worker) — not `chatgpt.com` directly. Workers can't reach `chatgpt.com/backend-api/*` (managed-challenge 403). The Worker proxies through a small non-Cloudflare host (Fly.io) that can.
+
+## How it works
+
+Your ChatGPT OAuth tokens are stored in a per-user Durable Object. When a request comes in with your API key, we refresh your ChatGPT access token if needed and forward to `chatgpt.com/backend-api/codex/*` through a thin Fly-hosted proxy.
+
+Code: [github.com/cameronglynn/codex-backend-api](https://github.com/cameronglynn/codex-backend-api)

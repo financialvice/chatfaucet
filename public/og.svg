@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" width="1200" height="630">
+  <rect width="1200" height="630" fill="#000000"/>
+
+  <rect x="60" y="60" width="1080" height="510" fill="none" stroke="#0052ff" stroke-width="3"/>
+  <rect x="60" y="60" width="1080" height="52" fill="#0052ff"/>
+  <text x="90" y="97" font-family="Menlo, Monaco, monospace" font-size="24" fill="#ffffff" font-weight="700" letter-spacing="0.5">codex-backend-api</text>
+
+  <text x="1110" y="97" font-family="Menlo, Monaco, monospace" font-size="24" fill="#ffffff" font-weight="400" text-anchor="end">[&#x2715;]</text>
+
+  <text x="110" y="240" font-family="Menlo, Monaco, monospace" font-size="72" fill="#ffffff" font-weight="700">ChatGPT plan</text>
+  <text x="110" y="324" font-family="Menlo, Monaco, monospace" font-size="72" fill="#0052ff" font-weight="700">→ OpenAI API</text>
+
+  <text x="110" y="400" font-family="Menlo, Monaco, monospace" font-size="26" fill="#8a9fd1">Sign in with ChatGPT. Point any OpenAI SDK at the gateway.</text>
+
+  <rect x="90" y="456" width="1020" height="74" fill="#050a14" stroke="#0052ff" stroke-width="2"/>
+  <text x="116" y="502" font-family="Menlo, Monaco, monospace" font-size="26" fill="#ffffff">$ curl https://codex-backend-api.com/v1/responses</text>
+  <rect x="898" y="481" width="14" height="28" fill="#0052ff"/>
+</svg>

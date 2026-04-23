@@ -1,0 +1,303 @@
+import { useEffect, useRef, useState } from "react"
+import { postJson, type DeviceStart } from "../lib/api"
+import Window from "../srcl/components/Window"
+import Card from "../srcl/components/Card"
+import Button from "../srcl/components/Button"
+import BlockLoader from "../srcl/components/BlockLoader"
+import RowSpaceBetween from "../srcl/components/RowSpaceBetween"
+import { ThemeToggle } from "../srcl/theme"
+
+type State =
+  | { kind: "idle" }
+  | { kind: "starting" }
+  | { kind: "waiting"; device: DeviceStart; startedAt: number }
+  | { kind: "error"; message: string }
+
+export function Landing({ onAuthed }: { onAuthed: () => void }) {
+  const [state, setState] = useState<State>({ kind: "idle" })
+  const [elapsed, setElapsed] = useState(0)
+  const [copiedCode, setCopiedCode] = useState(false)
+  const [copiedPrompt, setCopiedPrompt] = useState(false)
+  const cancelRef = useRef(false)
+
+  useEffect(() => {
+    document.title = "codex-backend-api — ChatGPT plan → OpenAI Responses API"
+  }, [])
+
+  useEffect(() => {
+    if (state.kind !== "waiting") return
+    setElapsed(Math.floor((Date.now() - state.startedAt) / 1000))
+    const iv = setInterval(() => {
+      setElapsed(Math.floor((Date.now() - state.startedAt) / 1000))
+    }, 1000)
+    return () => clearInterval(iv)
+  }, [state])
+
+  async function start() {
+    cancelRef.current = false
+    setState({ kind: "starting" })
+    try {
+      const device = await postJson<DeviceStart>("/api/auth/device-start")
+      window.open(
+        device.verification_uri_complete,
+        "_blank",
+        "noopener,noreferrer",
+      )
+      setState({ kind: "waiting", device, startedAt: Date.now() })
+      poll(device)
+    } catch (e) {
+      setState({ kind: "error", message: humanizeError(e) })
+    }
+  }
+
+  async function poll(device: DeviceStart) {
+    const deadline = Date.now() + 15 * 60 * 1000
+    while (Date.now() < deadline) {
+      if (cancelRef.current) return
+      await new Promise((r) => setTimeout(r, device.interval * 1000))
+      if (cancelRef.current) return
+      try {
+        const r = await postJson<{
+          status: "pending" | "success" | "error"
+          error?: string
+        }>("/api/auth/device-poll", {
+          device_auth_id: device.device_auth_id,
+          user_code: device.user_code,
+        })
+        if (r.status === "success") {
+          onAuthed()
+          return
+        }
+        if (r.status === "error") {
+          setState({
+            kind: "error",
+            message: humanizeError(r.error ?? "Authorization failed"),
+          })
+          return
+        }
+      } catch (e) {
+        setState({ kind: "error", message: humanizeError(e) })
+        return
+      }
+    }
+    setState({
+      kind: "error",
+      message: "Sign-in didn't complete within 15 minutes. Try again.",
+    })
+  }
+
+  function cancel() {
+    cancelRef.current = true
+    setState({ kind: "idle" })
+  }
+
+  async function copyCode(code: string) {
+    try {
+      await navigator.clipboard.writeText(code)
+      setCopiedCode(true)
+      setTimeout(() => setCopiedCode(false), 1500)
+    } catch {}
+  }
+
+  async function copyAgentPrompt() {
+    try {
+      await navigator.clipboard.writeText(AGENT_PROMPT)
+      setCopiedPrompt(true)
+      setTimeout(() => setCopiedPrompt(false), 1500)
+    } catch {}
+  }
+
+  return (
+    <Window>
+      <RowSpaceBetween style={{ marginBottom: "1rem" }}>
+        <span>codex-backend-api</span>
+        <ThemeToggle />
+      </RowSpaceBetween>
+
+      <Card title="OVERVIEW">
+        Your ChatGPT plan, exposed as an OpenAI-compatible Responses API. Sign
+        in once, mint an API key, point any OpenAI SDK at{" "}
+        <code>https://codex-backend-api.com/v1</code>.
+      </Card>
+
+      <div style={{ height: "1rem" }} />
+
+      <Card title="SIGN IN">
+        {state.kind === "idle" && (
+          <>
+            <p style={{ marginBottom: "1rem" }}>
+              We use the standard Codex device-code flow. No OpenAI API key
+              required.
+            </p>
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: "calc(var(--theme-line-height-base) * 0.5rem)",
+              }}
+            >
+              <Button onClick={copyAgentPrompt}>
+                {copiedPrompt
+                  ? "Copied prompt"
+                  : "Get started with agent (copy prompt)"}
+              </Button>
+              <Button theme="SECONDARY" onClick={start}>
+                Sign in with ChatGPT
+              </Button>
+            </div>
+          </>
+        )}
+
+        {state.kind === "starting" && (
+          <span>
+            Starting <BlockLoader mode={1} />
+          </span>
+        )}
+
+        {state.kind === "waiting" && (
+          <>
+            <p style={{ marginBottom: "0.5rem" }}>
+              A new tab should have opened. If not,{" "}
+              <a
+                href={state.device.verification_uri_complete}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                click here to authorize
+              </a>
+              .
+            </p>
+            <div style={{ margin: "1rem 0" }}>
+              <div style={{ opacity: 0.7, marginBottom: "0.25rem" }}>
+                Your code:
+              </div>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "stretch",
+                  gap: "1ch",
+                }}
+              >
+                <code
+                  style={{
+                    flex: 1,
+                    background: "var(--theme-background-input)",
+                    boxShadow: "inset 0 0 0 2px var(--theme-border)",
+                    padding: "0 1ch",
+                    lineHeight:
+                      "calc(var(--theme-line-height-base) * 2em)",
+                    letterSpacing: "0.25ch",
+                    fontSize: "1.1em",
+                  }}
+                >
+                  {state.device.user_code}
+                </code>
+                <div style={{ width: "14ch", flexShrink: 0 }}>
+                  <Button
+                    theme="SECONDARY"
+                    onClick={() => copyCode(state.device.user_code)}
+                  >
+                    {copiedCode ? "Copied ✓" : "Copy"}
+                  </Button>
+                </div>
+              </div>
+            </div>
+            <RowSpaceBetween style={{ alignItems: "baseline" }}>
+              <span>
+                Waiting <BlockLoader mode={1} />{" "}
+                <span style={{ opacity: 0.6, marginLeft: "1ch" }}>
+                  {fmtElapsed(elapsed)}
+                </span>
+              </span>
+              <button
+                type="button"
+                onClick={cancel}
+                style={{
+                  background: "transparent",
+                  color: "var(--theme-text)",
+                  border: 0,
+                  padding: 0,
+                  fontFamily: "inherit",
+                  fontSize: "inherit",
+                  cursor: "pointer",
+                  textDecoration: "underline",
+                  opacity: 0.7,
+                }}
+              >
+                cancel
+              </button>
+            </RowSpaceBetween>
+          </>
+        )}
+
+        {state.kind === "error" && (
+          <>
+            <p style={{ marginBottom: "1rem", color: "var(--ansi-9-red)" }}>
+              {state.message}
+            </p>
+            <Button theme="SECONDARY" onClick={() => setState({ kind: "idle" })}>
+              Try again
+            </Button>
+          </>
+        )}
+      </Card>
+
+      <div style={{ height: "1rem" }} />
+
+      <Card title="LINKS">
+        <RowSpaceBetween>
+          <a href="/docs">docs</a>
+          <a
+            href="https://github.com/cameronglynn/codex-backend-api"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            source
+          </a>
+        </RowSpaceBetween>
+      </Card>
+    </Window>
+  )
+}
+
+const AGENT_PROMPT = `I want to use codex-backend-api, an OpenAI-compatible Responses API backed by my ChatGPT plan.
+
+Please curl the agent-readable docs first:
+
+curl -fsSL https://codex-backend-api.com/docs.md
+
+Then follow the docs to create my account and mint an API key with the CLI:
+
+bunx codex-backend-api login --name agent
+
+If browser authorization is needed, start the documented device-code flow and tell me exactly which URL/code to approve. After setup, configure this shell/project with OPENAI_API_KEY and OPENAI_BASE_URL from \`bunx codex-backend-api env\`, then verify with /v1/models or /v1/usage. Do not ask me for an OpenAI API key.`
+
+function fmtElapsed(secs: number): string {
+  const m = Math.floor(secs / 60)
+  const s = secs % 60
+  return `${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`
+}
+
+function humanizeError(e: unknown): string {
+  const raw = typeof e === "string" ? e : e instanceof Error ? e.message : String(e)
+  const lower = raw.toLowerCase()
+  if (lower.includes("401") || lower.includes("unauthorized")) {
+    return "Authorization didn't stick. Try again."
+  }
+  if (lower.includes("timeout") || lower.includes("timed out")) {
+    return "Your ChatGPT session didn't complete in time. Try again."
+  }
+  if (lower.includes("access_denied") || lower.includes("denied")) {
+    return "Sign-in was denied. Try again."
+  }
+  if (lower.includes("expired_token") || lower.includes("expired")) {
+    return "Sign-in code expired. Start over."
+  }
+  if (lower.includes("failed to fetch") || lower.includes("networkerror")) {
+    return "Couldn't reach the server. Check your connection and try again."
+  }
+  if (lower.startsWith("5")) {
+    return "Server error. Try again in a moment."
+  }
+  return raw
+}
