@@ -2,6 +2,7 @@ import { useEffect, useState } from "react"
 import { Landing } from "./pages/Landing"
 import { Dashboard } from "./pages/Dashboard"
 import { Docs } from "./pages/Docs"
+import { Playground } from "./pages/Playground"
 import { getJson, type AuthStatus } from "./lib/api"
 import { PageShell } from "./srcl/PageShell"
 import BlockLoader from "./srcl/components/BlockLoader"
@@ -42,7 +43,9 @@ export function App() {
 
   return (
     <PageShell>
-      {status.signedIn ? (
+      {status.signedIn && path === "/playground" ? (
+        <Playground />
+      ) : status.signedIn ? (
         <Dashboard status={status} />
       ) : (
         <Landing

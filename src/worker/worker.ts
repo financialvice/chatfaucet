@@ -1,9 +1,12 @@
+import { routeAgentRequest } from "agents"
 import { AccountDO } from "./AccountDO"
+import { PlaygroundAgent } from "./PlaygroundAgent"
 import {
   authStatus,
   handleDeviceStart,
   handleDevicePoll,
   handleSignOut,
+  requireSession,
 } from "./routes-auth"
 import { listKeys, createKey, revokeKey } from "./routes-keys"
 import { handleResponses, handleModels, handleUsage } from "./routes-v1"
@@ -21,7 +24,7 @@ import { sessionUsage } from "./routes-usage"
 import { listDocs, getDoc } from "./routes-docs"
 import { error } from "./util"
 
-export { AccountDO }
+export { AccountDO, PlaygroundAgent }
 
 export default {
   async fetch(
@@ -74,6 +77,19 @@ export default {
       return sessionUsage(request, env)
     if (p === "/api/account" && request.method === "DELETE")
       return deleteAccountBySession(request, env)
+
+    if (p.startsWith("/agents/")) {
+      const s = await requireSession(request, env)
+      if (s instanceof Response) return s
+      const parts = p.split("/").filter(Boolean)
+      if (parts.length < 3) return error("invalid agent path", 400)
+      parts[2] = s.session.account_id
+      const pinned = new URL(request.url)
+      pinned.pathname = "/" + parts.join("/")
+      const res = await routeAgentRequest(new Request(pinned, request), env)
+      if (res) return res
+      return error("agent route not found", 404)
+    }
 
     if (p === "/api/cli/upload-tokens" && request.method === "POST")
       return cliUploadTokens(request, env)

@@ -21,6 +21,10 @@
       {
         "name": "ACCOUNT_DO",
         "class_name": "AccountDO"
+      },
+      {
+        "name": "PlaygroundAgent",
+        "class_name": "PlaygroundAgent"
       }
     ]
   },
@@ -36,6 +40,10 @@
     {
       "tag": "v3",
       "deleted_classes": ["RegistryDO"]
+    },
+    {
+      "tag": "v4",
+      "new_sqlite_classes": ["PlaygroundAgent"]
     }
   ],
   "kv_namespaces": [

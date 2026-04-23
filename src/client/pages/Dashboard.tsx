@@ -171,6 +171,7 @@ export function Dashboard({ status }: { status: AuthStatus }) {
             gap: "2ch",
           }}
         >
+          <a href="/playground">playground</a>
           <a href="/docs">docs</a>
           <button type="button" onClick={signOut} style={linkButtonStyle}>
             sign out
