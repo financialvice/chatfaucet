@@ -1,5 +1,5 @@
 import { getAccountByApiKey } from "./index-kv"
-import { error } from "./util"
+import { error, rateLimit } from "./util"
 
 const CODEX_PREFIX = "/codex"
 const WHAM_PREFIX = "/wham"
@@ -99,6 +99,8 @@ export async function handleResponses(
 ): Promise<Response> {
   const a = await authAndResolve(req, env)
   if (a instanceof Response) return a
+  const limited = await rateLimit(env, req, "v1-responses", 120, 60, a.keyId)
+  if (limited) return limited
   ctx.waitUntil(getStub(env, a.accountId).touchKey(a.keyId))
   return proxy(req, env, a.accountId, `${CODEX_PREFIX}/responses`)
 }
@@ -110,6 +112,8 @@ export async function handleModels(
 ): Promise<Response> {
   const a = await authAndResolve(req, env)
   if (a instanceof Response) return a
+  const limited = await rateLimit(env, req, "v1-models", 120, 60, a.keyId)
+  if (limited) return limited
   ctx.waitUntil(getStub(env, a.accountId).touchKey(a.keyId))
   return proxy(req, env, a.accountId, `${CODEX_PREFIX}/models`, {
     useBody: false,
@@ -124,6 +128,8 @@ export async function handleUsage(
 ): Promise<Response> {
   const a = await authAndResolve(req, env)
   if (a instanceof Response) return a
+  const limited = await rateLimit(env, req, "v1-usage", 120, 60, a.keyId)
+  if (limited) return limited
   ctx.waitUntil(getStub(env, a.accountId).touchKey(a.keyId))
   return proxy(req, env, a.accountId, `${WHAM_PREFIX}/usage`, {
     useBody: false,

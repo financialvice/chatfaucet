@@ -1,6 +1,14 @@
 import { requireSession } from "./routes-auth"
 import { setApiKey, deleteApiKeyByHash } from "./index-kv"
-import { error, json, randomSlug, sha256Hex } from "./util"
+import {
+  error,
+  json,
+  randomSlug,
+  rateLimit,
+  requireJson,
+  requireSameOrigin,
+  sha256Hex,
+} from "./util"
 import type { ApiKey } from "./AccountDO"
 
 const KEY_PREFIX = "cba_"
@@ -34,8 +42,23 @@ export async function listKeys(req: Request, env: Env): Promise<Response> {
 }
 
 export async function createKey(req: Request, env: Env): Promise<Response> {
+  const badOrigin = requireSameOrigin(req, env)
+  if (badOrigin) return badOrigin
+  const badJson = requireJson(req)
+  if (badJson) return badJson
+
   const s = await requireSession(req, env)
   if (s instanceof Response) return s
+  const limited = await rateLimit(
+    env,
+    req,
+    "create-key",
+    20,
+    60 * 60,
+    s.session.account_id,
+  )
+  if (limited) return limited
+
   const body = (await req.json().catch(() => ({}))) as { name?: string }
   const name = (body.name ?? "default").slice(0, 64) || "default"
 
@@ -65,6 +88,9 @@ export async function revokeKey(
   env: Env,
   id: string,
 ): Promise<Response> {
+  const badOrigin = requireSameOrigin(req, env)
+  if (badOrigin) return badOrigin
+
   const s = await requireSession(req, env)
   if (s instanceof Response) return s
   const stub = getStub(env, s.session.account_id)

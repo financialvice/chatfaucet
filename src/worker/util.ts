@@ -8,6 +8,56 @@ export function error(message: string, status = 400): Response {
   return json({ error: message }, status)
 }
 
+export function requireSameOrigin(req: Request, env: Env): Response | null {
+  const origin = req.headers.get("origin")
+  if (origin && origin !== `https://${env.APP_HOSTNAME}`) {
+    return error("invalid origin", 403)
+  }
+  return null
+}
+
+export function requireJson(req: Request): Response | null {
+  const contentType = req.headers.get("content-type") || ""
+  if (!contentType.toLowerCase().includes("application/json")) {
+    return error("content-type must be application/json", 415)
+  }
+  return null
+}
+
+export async function rateLimit(
+  env: Env,
+  req: Request,
+  name: string,
+  limit: number,
+  windowSeconds: number,
+  subject = clientIp(req),
+): Promise<Response | null> {
+  const bucket = Math.floor(Date.now() / 1000 / windowSeconds)
+  const key = `rl:${name}:${bucket}:${await sha256Hex(subject)}`
+  const cur = (await env.INDEX.get<{ count?: number }>(key, "json")) ?? {}
+  const count = (cur.count ?? 0) + 1
+  if (count > limit) {
+    return json(
+      { error: "rate limit exceeded" },
+      429,
+      { "retry-after": String(windowSeconds) },
+    )
+  }
+  await env.INDEX.put(key, JSON.stringify({ count }), {
+    expirationTtl: windowSeconds * 2,
+  })
+  return null
+}
+
+function clientIp(req: Request): string {
+  const forwarded = req.headers.get("x-forwarded-for")
+  return (
+    req.headers.get("cf-connecting-ip") ??
+    forwarded?.split(",")[0]?.trim() ??
+    "unknown"
+  )
+}
+
 export function randomBytes(n: number): Uint8Array {
   const buf = new Uint8Array(n)
   crypto.getRandomValues(buf)
@@ -71,4 +121,3 @@ export function setCookieHeader(
   parts.push(`SameSite=${opts.sameSite ?? "Lax"}`)
   return parts.join("; ")
 }
-

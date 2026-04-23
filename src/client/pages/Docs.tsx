@@ -270,7 +270,26 @@ function parseBlocks(
 }
 
 function escapeHtml(s: string): string {
-  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;")
+}
+
+function safeHref(href: string): string {
+  const trimmed = href.trim()
+  if (
+    trimmed.startsWith("#") ||
+    trimmed.startsWith("/") ||
+    /^https?:\/\//i.test(trimmed) ||
+    /^mailto:/i.test(trimmed) ||
+    !/^[a-z][a-z0-9+.-]*:/i.test(trimmed)
+  ) {
+    return trimmed
+  }
+  return "#"
 }
 
 function slugify(s: string): string {
@@ -296,7 +315,11 @@ function renderProse(s: string): string {
     .replace(/^# (.*)$/gm, headingRepl(1))
     .replace(/`([^`]+)`/g, "<code>$1</code>")
     .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
-    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2">$1</a>')
+    .replace(
+      /\[([^\]]+)\]\(([^)]+)\)/g,
+      (_m, label: string, href: string) =>
+        `<a href="${safeHref(href)}">${label}</a>`,
+    )
     .replace(/^- (.*)$/gm, "<li>$1</li>")
     .replace(/(<li>.*<\/li>\n?)+/g, (m) => `<ul>${m}</ul>`)
     .replace(/\n\n+/g, "</p><p>")

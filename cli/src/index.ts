@@ -155,7 +155,12 @@ async function cmdLogin(args: string[]) {
     const tokens = await readAuthJson()
     if (tokens) {
       console.log(`Found ~/.codex/auth.json — uploading tokens…`)
-      login = await uploadTokens(tokens, name)
+      try {
+        login = await uploadTokens(tokens, name)
+      } catch (e) {
+        console.log(`Token upload failed (${String(e)}); falling back to device login.`)
+        login = await deviceFlow(name)
+      }
     } else {
       login = await deviceFlow(name)
     }

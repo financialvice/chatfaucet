@@ -5,7 +5,15 @@ import {
   type DevicePollInput,
 } from "./signin"
 import { createSession, deleteSession, getSession } from "./index-kv"
-import { error, json, parseCookie, setCookieHeader } from "./util"
+import {
+  error,
+  json,
+  parseCookie,
+  rateLimit,
+  requireJson,
+  requireSameOrigin,
+  setCookieHeader,
+} from "./util"
 
 export const SESSION_COOKIE = "cba_session"
 
@@ -21,7 +29,12 @@ export async function authStatus(req: Request, env: Env): Promise<Response> {
   })
 }
 
-export async function handleDeviceStart(): Promise<Response> {
+export async function handleDeviceStart(
+  req: Request,
+  env: Env,
+): Promise<Response> {
+  const limited = await rateLimit(env, req, "device-start", 20, 60)
+  if (limited) return limited
   return deviceStart()
 }
 
@@ -45,6 +58,11 @@ export async function handleDevicePoll(
   req: Request,
   env: Env,
 ): Promise<Response> {
+  const limited = await rateLimit(env, req, "device-poll", 120, 60)
+  if (limited) return limited
+  const badJson = requireJson(req)
+  if (badJson) return badJson
+
   const input = (await req.json().catch(() => null)) as DevicePollInput | null
   if (
     !input ||
@@ -77,6 +95,9 @@ export async function handleSignOut(
   req: Request,
   env: Env,
 ): Promise<Response> {
+  const badOrigin = requireSameOrigin(req, env)
+  if (badOrigin) return badOrigin
+
   const sid = parseCookie(req.headers.get("cookie"), SESSION_COOKIE)
   if (sid) await deleteSession(env, sid)
   return json({ ok: true }, 200, { "set-cookie": clearSessionCookie(env) })

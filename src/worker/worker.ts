@@ -49,7 +49,7 @@ export default {
 
     if (p === "/api/auth/status") return authStatus(request, env)
     if (p === "/api/auth/device-start" && request.method === "POST")
-      return handleDeviceStart()
+      return handleDeviceStart(request, env)
     if (p === "/api/auth/device-poll" && request.method === "POST")
       return handleDevicePoll(request, env)
     if (p === "/api/auth/sign-out" && request.method === "POST")
@@ -71,7 +71,7 @@ export default {
     if (p === "/api/cli/upload-tokens" && request.method === "POST")
       return cliUploadTokens(request, env)
     if (p === "/api/cli/device-start" && request.method === "POST")
-      return cliDeviceStart()
+      return cliDeviceStart(request, env)
     if (p === "/api/cli/device-poll" && request.method === "POST")
       return cliDevicePoll(request, env)
     const cliSignInMatch = p.match(/^\/api\/cli\/sign-in\/([^/]+)$/)

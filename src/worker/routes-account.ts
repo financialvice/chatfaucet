@@ -1,6 +1,6 @@
 import { getAccountByApiKey, deleteApiKeyByHash } from "./index-kv"
 import { requireSession, clearSessionCookie } from "./routes-auth"
-import { error, json } from "./util"
+import { error, json, requireSameOrigin } from "./util"
 
 function getStub(env: Env, accountId: string) {
   const id = env.ACCOUNT_DO.idFromName(accountId)
@@ -65,6 +65,9 @@ export async function deleteAccountBySession(
   req: Request,
   env: Env,
 ): Promise<Response> {
+  const badOrigin = requireSameOrigin(req, env)
+  if (badOrigin) return badOrigin
+
   const s = await requireSession(req, env)
   if (s instanceof Response) return s
 

@@ -13,7 +13,7 @@ import {
   setApiKey,
 } from "./index-kv"
 import type { ApiKey } from "./AccountDO"
-import { error, json, randomSlug, sha256Hex } from "./util"
+import { error, json, randomSlug, rateLimit, requireJson, sha256Hex } from "./util"
 import { mkSessionCookie } from "./routes-auth"
 
 const KEY_PREFIX = "cba_"
@@ -79,6 +79,11 @@ export async function cliUploadTokens(
   req: Request,
   env: Env,
 ): Promise<Response> {
+  const limited = await rateLimit(env, req, "cli-upload-tokens", 10, 60)
+  if (limited) return limited
+  const badJson = requireJson(req)
+  if (badJson) return badJson
+
   const body = (await req.json().catch(() => null)) as {
     refresh_token?: string
     id_token?: string
@@ -98,11 +103,12 @@ export async function cliUploadTokens(
 
   const newAccessToken = refreshed.access_token
   const newRefreshToken = refreshed.refresh_token ?? body.refresh_token
-  const newIdToken = refreshed.id_token ?? body.id_token
-  if (!newIdToken) return error("no id_token available; cannot resolve account", 400)
+  const newIdToken = refreshed.id_token
+  if (!newIdToken) {
+    return error("refresh did not return an id_token; use device login", 400)
+  }
 
-  const accountId =
-    body.account_id ?? extractAccountId(newIdToken) ?? null
+  const accountId = extractAccountId(newIdToken)
   if (!accountId) return error("could not resolve account id", 400)
 
   const tokens: StoredTokens = {
@@ -123,7 +129,12 @@ export async function cliUploadTokens(
   )
 }
 
-export async function cliDeviceStart(): Promise<Response> {
+export async function cliDeviceStart(
+  req: Request,
+  env: Env,
+): Promise<Response> {
+  const limited = await rateLimit(env, req, "cli-device-start", 20, 60)
+  if (limited) return limited
   return deviceStart()
 }
 
@@ -131,6 +142,11 @@ export async function cliDevicePoll(
   req: Request,
   env: Env,
 ): Promise<Response> {
+  const limited = await rateLimit(env, req, "cli-device-poll", 120, 60)
+  if (limited) return limited
+  const badJson = requireJson(req)
+  if (badJson) return badJson
+
   const input = (await req.json().catch(() => null)) as {
     device_auth_id: string
     user_code: string

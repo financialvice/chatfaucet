@@ -54,6 +54,13 @@ Live at **[codex-backend-api.com](https://codex-backend-api.com)**. Docs at **[c
 
 Cloudflare Workers can't reach `chatgpt.com/backend-api/*` (managed-challenge 403) — the Fly proxy is the smallest possible hop that can. All per-user tokens live in a Durable Object per account. API keys are stored hashed; the KV index maps `sha256(api_key) → account_id`.
 
+## Security notes
+
+- This service stores ChatGPT OAuth refresh/access tokens server-side in the account Durable Object so it can refresh and proxy requests. Use account deletion to purge stored tokens, sessions, and API keys.
+- Session-authenticated dashboard mutations check same-origin requests; API endpoints use bearer API keys.
+- Basic KV-backed rate limits protect login, key creation, and `/v1/*` request paths. Tune these for your own deployment.
+- Keep `PROXY_SECRET` in Wrangler/Fly secrets only; don't commit it.
+
 ## Repo layout
 
 ```
