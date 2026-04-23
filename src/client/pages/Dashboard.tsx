@@ -317,7 +317,9 @@ Authorization: Bearer <your api key>`}</pre>
               <tbody>
                 {keys.map((k) => (
                   <tr key={k.id}>
-                    <td style={tdStyle}>{k.name}</td>
+                    <td style={nameTdStyle} title={k.name}>
+                      {k.name}
+                    </td>
                     <td style={tdStyle}>
                       <code>{k.prefix}…</code>
                     </td>
@@ -644,13 +646,13 @@ function formatReset(seconds: number): string {
 
 function relDate(secs: number): string {
   const diff = Date.now() / 1000 - secs
-  if (diff < 45) return "just now"
-  if (diff < 3600) return `${Math.floor(diff / 60)} min ago`
-  if (diff < 86400) return `${Math.floor(diff / 3600)} h ago`
-  if (diff < 86400 * 7) return `${Math.floor(diff / 86400)} d ago`
-  if (diff < 86400 * 30) return `${Math.floor(diff / (86400 * 7))} w ago`
-  if (diff < 86400 * 365) return `${Math.floor(diff / (86400 * 30))} mo ago`
-  return `${Math.floor(diff / (86400 * 365))} y ago`
+  if (diff < 45) return "now"
+  if (diff < 3600) return `${Math.floor(diff / 60)}m`
+  if (diff < 86400) return `${Math.floor(diff / 3600)}h`
+  if (diff < 86400 * 7) return `${Math.floor(diff / 86400)}d`
+  if (diff < 86400 * 30) return `${Math.floor(diff / (86400 * 7))}w`
+  if (diff < 86400 * 365) return `${Math.floor(diff / (86400 * 30))}mo`
+  return `${Math.floor(diff / (86400 * 365))}y`
 }
 
 function absDate(secs: number): string {
@@ -684,6 +686,14 @@ const thStyle: React.CSSProperties = {
 const tdStyle: React.CSSProperties = {
   padding: "0 2ch 0 0",
   verticalAlign: "top",
+  whiteSpace: "nowrap",
+}
+
+const nameTdStyle: React.CSSProperties = {
+  ...tdStyle,
+  maxWidth: "20ch",
+  overflow: "hidden",
+  textOverflow: "ellipsis",
 }
 
 const linkButtonStyle: React.CSSProperties = {
