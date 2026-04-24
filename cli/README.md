@@ -5,11 +5,11 @@ your ChatGPT plan as an OpenAI-compatible Responses API.
 
 ## Usage
 
-Requires [Bun](https://bun.sh).
+Requires Node 18+ (or [Bun](https://bun.sh)).
 
 ```sh
-bunx chatfaucet login
-bunx chatfaucet env
+npx chatfaucet login
+npx chatfaucet env
 ```
 
 After login, use the printed exports with OpenAI-compatible SDKs and tools:
@@ -21,10 +21,10 @@ export OPENAI_BASE_URL="https://chatfaucet.com/v1"
 
 `login` also prints a one-time `Sign-in link:`. Open it in a browser to view the dashboard already signed in; it expires after 15 minutes and can be used once.
 
-You can also run it through npm if Bun is installed:
+Bun users can swap `npx` for `bunx`:
 
 ```sh
-npx chatfaucet login
+bunx chatfaucet login
 ```
 
 ## Commands

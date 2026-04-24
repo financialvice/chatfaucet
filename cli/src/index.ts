@@ -1,4 +1,4 @@
-#!/usr/bin/env bun
+#!/usr/bin/env node
 import { readFile, writeFile, mkdir, rm } from "node:fs/promises"
 import { homedir, platform } from "node:os"
 import { join } from "node:path"
