@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react"
+import { Link } from "@tanstack/react-router"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import {
   del,
@@ -59,7 +60,6 @@ export function Dashboard({ status }: { status: AuthStatus }) {
   const usageErr = usageErrorObj ? String(usageErrorObj) : null
 
   useEffect(() => {
-    document.title = "dashboard — Chat Faucet"
     nameInputRef.current?.focus()
   }, [])
 
@@ -168,8 +168,8 @@ export function Dashboard({ status }: { status: AuthStatus }) {
             gap: "2ch",
           }}
         >
-          <a href="/playground">playground</a>
-          <a href="/docs">docs</a>
+          <Link to="/playground">playground</Link>
+          <Link to="/docs">docs</Link>
           <button type="button" onClick={signOut} style={linkButtonStyle}>
             sign out
           </button>

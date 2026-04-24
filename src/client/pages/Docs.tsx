@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react"
+import { Link } from "@tanstack/react-router"
 import { useQuery } from "@tanstack/react-query"
 import Window from "../srcl/components/Window"
 import Card from "../srcl/components/Card"
@@ -32,10 +33,6 @@ export function Docs({ path, signedIn }: { path: string; signedIn: boolean }) {
     staleTime: 5 * 60_000,
   })
   const err = error ? String(error) : null
-
-  useEffect(() => {
-    document.title = "docs — Chat Faucet"
-  }, [])
 
   useEffect(() => {
     if (md == null) return
@@ -124,7 +121,7 @@ export function Docs({ path, signedIn }: { path: string; signedIn: boolean }) {
   return (
     <Window>
       <RowSpaceBetween style={{ marginBottom: "1rem" }}>
-        <a href="/">← {signedIn ? "dashboard" : "Chat Faucet"}</a>
+        <Link to="/">← {signedIn ? "dashboard" : "Chat Faucet"}</Link>
         <ThemeToggle />
       </RowSpaceBetween>
 

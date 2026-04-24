@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react"
+import { Link } from "@tanstack/react-router"
 import { postJson, type DeviceStart } from "../lib/api"
 import Window from "../srcl/components/Window"
 import Card from "../srcl/components/Card"
@@ -22,10 +23,6 @@ export function Landing({ onAuthed }: { onAuthed: () => void }) {
   const [copiedPrompt, setCopiedPrompt] = useState(false)
   const stars = useGithubStars(REPO)
   const cancelRef = useRef(false)
-
-  useEffect(() => {
-    document.title = "Chat Faucet — ChatGPT plan → OpenAI Responses API"
-  }, [])
 
   useEffect(() => {
     if (state.kind !== "waiting") return
@@ -116,7 +113,7 @@ export function Landing({ onAuthed }: { onAuthed: () => void }) {
             gap: "2ch",
           }}
         >
-          <a href="/docs">docs</a>
+          <Link to="/docs">docs</Link>
           <a
             href={`https://github.com/${REPO}`}
             target="_blank"

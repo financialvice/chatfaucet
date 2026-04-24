@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react"
+import { Link } from "@tanstack/react-router"
 import { useAgent } from "agents/react"
 import { useAgentChat } from "@cloudflare/ai-chat/react"
 import Window from "../srcl/components/Window"
@@ -22,10 +23,6 @@ export function Playground() {
     useAgentChat({ agent })
 
   useEffect(() => {
-    document.title = "playground - Chat Faucet"
-  }, [])
-
-  useEffect(() => {
     scrollerRef.current?.scrollTo({
       top: scrollerRef.current.scrollHeight,
       behavior: "smooth",
@@ -40,7 +37,7 @@ export function Playground() {
         <RowSpaceBetween>
           <span>Chat Faucet / Playground</span>
           <span className={styles.inlineActions}>
-            <a href="/">dashboard</a>
+            <Link to="/">dashboard</Link>
             <button
               type="button"
               onClick={() => clearHistory()}
