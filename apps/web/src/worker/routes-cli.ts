@@ -111,10 +111,7 @@ export async function cliUploadTokens(
   const newRefreshToken = refreshed.refresh_token ?? body.refresh_token;
   const newIdToken = refreshed.id_token ?? body.id_token;
   if (!newIdToken) {
-    return error(
-      "auth.json did not include an id_token; run `chatfaucet login --no-read-auth-json`",
-      400
-    );
+    return error("token response missing id_token", 400);
   }
 
   const accountId = body.account_id || extractAccountId(newIdToken);

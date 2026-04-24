@@ -18,7 +18,7 @@
 - I don't recommend using this for powering inference for externally-facing apps, I think that probably violates [TOS](https://openai.com/policies/row-terms-of-use/) and is low aura, just use this for personal apps/fun things
 
 ## privacy and security
-- to make things easy, this service stores (encrypted) and auto-refreshes against your codex auth.json token
+- to make things easy, this service stores encrypted ChatGPT OAuth tokens from the browser sign-in flow and auto-refreshes them for gateway requests
 - please fork, deploy for yourself (just need Cloudflare/Fly.io), or ask your agent to do things your way
 
 ## inspiration / references
