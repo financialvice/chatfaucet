@@ -1,0 +1,41 @@
+.message {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: calc(var(--font-size) * var(--theme-line-height-base));
+}
+
+.left {
+  width: 100%;
+  min-width: 10%;
+  text-align: right;
+}
+
+.bubble {
+  display: inline-block;
+  max-width: 100%;
+  padding: calc(8px * var(--theme-line-height-base)) 1ch;
+  color: var(--color-black);
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+  background: var(--theme-focused-foreground);
+}
+
+.right {
+  display: flex;
+  flex-shrink: 0;
+  align-items: flex-end;
+  align-self: stretch;
+}
+
+.triangle {
+  display: inline-block;
+  width: 0;
+  height: 0;
+  margin-bottom: calc((var(--font-size) * var(--theme-line-height-base)) / 2);
+  border-top: calc((var(--font-size) * var(--theme-line-height-base)) / 2) solid
+    transparent;
+  border-bottom: calc((var(--font-size) * var(--theme-line-height-base)) / 2)
+    solid transparent;
+  border-left: 1ch solid var(--theme-focused-foreground);
+}

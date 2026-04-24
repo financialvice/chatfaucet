@@ -1,0 +1,41 @@
+{
+  "name": "@chatfaucet/web",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler types && vite dev --port 3000",
+    "build": "wrangler types && vite build",
+    "preview": "vite preview",
+    "deploy": "wrangler deploy",
+    "cf-typegen": "wrangler types",
+    "typecheck": "wrangler types && tsgo --noEmit",
+    "check": "ultracite check",
+    "fix": "ultracite fix"
+  },
+  "dependencies": {
+    "@ai-sdk/openai": "catalog:",
+    "@cloudflare/ai-chat": "catalog:",
+    "@cloudflare/shell": "catalog:",
+    "@cloudflare/think": "catalog:",
+    "@tanstack/query-async-storage-persister": "catalog:",
+    "@tanstack/react-query": "catalog:",
+    "@tanstack/react-query-persist-client": "catalog:",
+    "@tanstack/react-router": "catalog:",
+    "agents": "catalog:",
+    "ai": "catalog:",
+    "idb-keyval": "catalog:",
+    "react": "catalog:",
+    "react-dom": "catalog:",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@cloudflare/vite-plugin": "catalog:",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "@typescript/native-preview": "catalog:",
+    "@vitejs/plugin-react": "catalog:",
+    "typescript": "catalog:",
+    "vite": "catalog:",
+    "wrangler": "catalog:"
+  }
+}

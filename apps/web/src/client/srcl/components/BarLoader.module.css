@@ -1,0 +1,15 @@
+.root {
+  display: block;
+  height: calc(var(--font-size) * var(--theme-line-height-base));
+  vertical-align: bottom;
+  text-align: left;
+  white-space: nowrap;
+  background: var(--theme-border);
+}
+
+.bar {
+  width: 0%;
+  height: 100%;
+  background: linear-gradient(to right, transparent, var(--theme-text));
+  transition: width 0.1s linear;
+}

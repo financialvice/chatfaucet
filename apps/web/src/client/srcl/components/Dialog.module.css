@@ -1,0 +1,63 @@
+.root {
+  position: relative;
+  display: block;
+  min-width: 24ch;
+  max-width: 56ch;
+  padding: 0;
+  margin: 0;
+  font-weight: 400;
+  background: var(--theme-border);
+  box-shadow: 1ch 1ch 0 0 var(--theme-border-subdued);
+}
+
+.header {
+  display: block;
+  padding: 0;
+  margin: 0;
+  color: var(--theme-background);
+  text-align: center;
+  background: var(--theme-text);
+}
+
+.message {
+  display: block;
+  padding: 0 2ch 0 2ch;
+  margin: 0;
+  text-align: center;
+}
+
+.actions {
+  display: flex;
+  gap: 1ch;
+  align-items: center;
+  justify-content: space-between;
+  max-width: min(40ch, 100%);
+  padding: 0 2ch 0 2ch;
+  margin: 0 auto 0 auto;
+}
+
+.actions button {
+  flex: 1 1 auto;
+  min-width: max-content;
+}
+
+.backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2ch;
+  background: var(--theme-overlay);
+}
+
+.backdropDismiss {
+  position: absolute;
+  inset: 0;
+  padding: 0;
+  margin: 0;
+  cursor: pointer;
+  background: transparent;
+  border: 0;
+}

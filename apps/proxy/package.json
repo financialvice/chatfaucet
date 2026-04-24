@@ -1,0 +1,13 @@
+{
+  "name": "chatfaucet-proxy",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "bun run src/server.ts",
+    "dev": "bun run --watch src/server.ts",
+    "deploy": "flyctl deploy --remote-only",
+    "check": "ultracite check",
+    "fix": "ultracite fix"
+  }
+}

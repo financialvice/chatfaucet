@@ -1,0 +1,8 @@
+.block {
+  display: inline-block;
+  flex-shrink: 0;
+  width: 1ch;
+  height: calc(var(--font-size) * var(--theme-line-height-base));
+  vertical-align: bottom;
+  background: var(--theme-text);
+}

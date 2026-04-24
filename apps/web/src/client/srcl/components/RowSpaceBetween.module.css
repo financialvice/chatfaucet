@@ -1,0 +1,9 @@
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: calc(var(--theme-line-height-base) * 0.25rem) 2ch;
+  align-items: baseline;
+  justify-content: space-between;
+  outline: 0;
+  border: 0;
+}
