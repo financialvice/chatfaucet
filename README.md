@@ -1,137 +1,26 @@
 # Chat Faucet
 
-Your ChatGPT plan, as an OpenAI-compatible Responses API.
+![Chat Faucet — your ChatGPT plan exposed as an OpenAI Responses API](./public/og.png)
 
-- Sign in with ChatGPT (no OpenAI API key needed).
-- Mint API keys — then point any OpenAI SDK at the gateway.
-- Use the CLI's one-time sign-in link to open the web dashboard after headless setup.
-- Delete your account and all stored data from the web UI, CLI, or API.
+## what it do
+- gives you a more OPENAI_API_KEY-like experience by managing your codex auth creds and letting you mint your own api keys to use against the chatfaucet.com/v1 base url
+- also runs requests through a thin Fly proxy bc I had trouble with making requests from Cloudflare IPs when building on their infra
+- TL;DR: your ChatGPT plan -> OpenAI Responses API
 
-```
-import OpenAI from "openai"
-const client = new OpenAI({
-  apiKey: "chf_...",
-  baseURL: "https://chatfaucet.com/v1",
-})
-const stream = await client.responses.create({
-  model: "gpt-5.5",
-  instructions: "",
-  input: [
-    {
-      type: "message",
-      role: "user",
-      content: [{ type: "input_text", text: "Say hi" }],
-    },
-  ],
-  stream: true,
-  store: false,
-})
-```
+## why
+- your ChatGPT subscription includes Responses API usage (primarily intended for consumption in Codex CLI and App), but [approved for usage elsewhere by OAI staff](https://x.com/steipete/status/2046775849769148838)
+- the standard use case for this auth method (codex exec or codex app-server) is relatively un-ergonomic for more standard, simple AI app implementations (like basic chat or non-computer-using agents)
+- chat faucet makes it stupid easy to build and deploy apps that use your ChatGPT sub inference
 
-Live at **[chatfaucet.com](https://chatfaucet.com)**. Docs at **[chatfaucet.com/docs](https://chatfaucet.com/docs)**.
+## quirks
+- must set `instructions`, `store: false`, `stream: true` (see [docs](https://chatfaucet.com/docs))
+- probably other quirks, if you find please PR
+- I don't recommend using this for powering inference for externally-facing apps, I think that probably violates [TOS](https://openai.com/policies/row-terms-of-use/) and is low aura, just use this for personal apps/fun things
 
-## How it works
+## privacy and security
+- to make things easy, this service stores (encrypted) and auto-refreshes against your codex auth.json token
+- please fork, deploy for yourself (just need Cloudflare/Fly.io), or ask your agent to do things your way
 
-```
-┌─ Worker (chatfaucet.com) ─────────────────┐
-│  /v1/responses   API-key auth, SSE passthrough   │
-│  /v1/models                                       │
-│  /v1/usage                                        │
-│  /v1/account     API-key account deletion         │
-│  /api/auth/*     ChatGPT device-code flow        │
-│  /api/cli/*      Headless login + dashboard link │
-│  /api/keys       Mint/revoke                      │
-│  /api/account    Session account deletion         │
-│  /docs                                            │
-└──────────────────────────────────────────────────┘
-        │                     │
-        ▼ OAuth               ▼ proxies per-user tokens
-  auth.openai.com      fly.io proxy (bun)
-                            │
-                            ▼
-                chatgpt.com/backend-api/codex/*
-```
-
-Cloudflare Workers can't reach `chatgpt.com/backend-api/*` (managed-challenge 403) — the Fly proxy is the smallest possible hop that can. All per-user tokens live in a Durable Object per account. API keys are stored hashed; the KV index maps `sha256(api_key) → account_id`.
-
-## Security notes
-
-- This service stores ChatGPT OAuth refresh/access tokens server-side in the account Durable Object so it can refresh and proxy requests. Use account deletion to purge stored tokens, sessions, and API keys.
-- Session-authenticated dashboard mutations require same-origin browser metadata; API endpoints use bearer API keys.
-- Basic KV-backed rate limits protect login, key creation, and `/v1/*` request paths. Tune these for your own deployment.
-- Keep `PROXY_SECRET` in Wrangler/Fly secrets only; don't commit it.
-- Keep `TOKEN_ENCRYPTION_KEY` in Wrangler secrets only; it encrypts stored OAuth tokens.
-
-## Repo layout
-
-```
-src/
-  worker/        Cloudflare Worker (API + Durable Object)
-  client/        Vite + React SPA
-  docs/          Markdown served at /docs
-proxy/           Fly.io Bun HTTP proxy
-cli/             bunx chatfaucet
-```
-
-## Self-host
-
-You'll need:
-
-- Cloudflare account (free plan is fine)
-- Fly.io account (free plan is fine)
-- A domain, with wildcard DNS pointed at Cloudflare (e.g. `*.yourdomain.com`)
-
-### 1. Deploy the proxy
-
-```
-cd proxy
-fly launch --no-deploy --copy-config --name <your-proxy-name>
-fly secrets set PROXY_SECRET="$(openssl rand -hex 32)"
-fly deploy --ha=false
-```
-
-Keep the proxy URL and the secret — you'll need them in step 2.
-
-### 2. Deploy the worker
-
-```
-bun install
-bunx wrangler kv namespace create INDEX
-# → copy the id into wrangler.jsonc (replace PLACEHOLDER_INDEX_KV_ID)
-```
-
-Edit `wrangler.jsonc`:
-- `vars.APP_HOSTNAME` → your domain (e.g. `yourdomain.com`)
-- `vars.PROXY_URL` → `https://<your-proxy-name>.fly.dev`
-
-Put the proxy secret in:
-
-```
-bunx wrangler secret put PROXY_SECRET
-bunx wrangler secret put TOKEN_ENCRYPTION_KEY # use: openssl rand -hex 32
-```
-
-Add a workers route for `*.yourdomain.com/*` → this worker in Cloudflare. Make sure wildcard DNS points at the worker.
-
-Deploy:
-
-```
-bun run deploy
-```
-
-### 3. Publish the CLI (optional)
-
-```
-cd cli
-bun publish
-```
-
-## Inspirations / credit
-
-- [openai/codex](https://github.com/openai/codex) — reverse-engineered the backend
-- [badlogic/pi-mono](https://github.com/badlogic/pi-mono) and [anomalyco/opencode](https://github.com/anomalyco/opencode) — validated the reuse-the-Codex-CLI-client-id pattern
-- Cloudflare's [@cloudflare/think](https://www.npmjs.com/package/@cloudflare/think) and [@cloudflare/vite-plugin](https://www.npmjs.com/package/@cloudflare/vite-plugin) — the beautiful abstractions
-
-## License
-
-MIT
+## inspiration / references
+- [OpenAI Codex](https://github.com/openai/codex); direct reference source code for reverse-engineering
+- [Pi](https://github.com/badlogic/pi-mono), [OpenCode](https://github.com/anomalyco/opencode), [OpenClaw](https://github.com/openclaw/openclaw); they use similar approaches for enabling ChatGPT sub usage for their agent harnesses
