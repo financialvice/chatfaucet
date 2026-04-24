@@ -302,13 +302,12 @@ function useGithubStars(repo: string): number | null {
       const cached = localStorage.getItem(key)
       if (!cached) return null
       const parsed = JSON.parse(cached) as { count: number; ts: number }
-      if (Date.now() - parsed.ts < 10 * 60 * 1000) return parsed.count
+      return parsed.count
     } catch {}
     return null
   })
 
   useEffect(() => {
-    if (count !== null) return
     const ctrl = new AbortController()
     fetch(`https://api.github.com/repos/${repo}`, { signal: ctrl.signal })
       .then((r) => (r.ok ? (r.json() as Promise<{ stargazers_count?: number }>) : Promise.reject()))
@@ -324,7 +323,7 @@ function useGithubStars(repo: string): number | null {
       })
       .catch(() => {})
     return () => ctrl.abort()
-  }, [repo, key, count])
+  }, [repo, key])
 
   return count
 }
