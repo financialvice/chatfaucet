@@ -17,7 +17,7 @@ import {
 } from "./routes-account"
 import { sessionUsage } from "./routes-usage"
 import { listDocs, getDoc } from "./routes-docs"
-import { error } from "./util"
+import { error, withSecurityHeaders } from "./util"
 
 export { AccountDO, PlaygroundAgent }
 
@@ -27,6 +27,15 @@ export default {
     env: Env,
     ctx: ExecutionContext,
   ): Promise<Response> {
+    return withSecurityHeaders(await handleRequest(request, env, ctx))
+  },
+} satisfies ExportedHandler<Env>
+
+async function handleRequest(
+  request: Request,
+  env: Env,
+  ctx: ExecutionContext,
+): Promise<Response> {
     const url = new URL(request.url)
     const p = url.pathname
     if (url.hostname === `www.${env.APP_HOSTNAME}`) {
@@ -111,5 +120,4 @@ export default {
     const out = new Response(assetResp.body, assetResp)
     out.headers.set("cdn-cache-control", "no-store")
     return out
-  },
-} satisfies ExportedHandler<Env>
+}

@@ -9,11 +9,58 @@ export function error(message: string, status = 400): Response {
 }
 
 export function requireSameOrigin(req: Request, env: Env): Response | null {
+  const expectedOrigin = `https://${env.APP_HOSTNAME}`
   const origin = req.headers.get("origin")
-  if (origin && origin !== `https://${env.APP_HOSTNAME}`) {
+  if (origin) {
+    return origin === expectedOrigin ? null : error("invalid origin", 403)
+  }
+
+  const fetchSite = req.headers.get("sec-fetch-site")
+  if (fetchSite === "same-origin") return null
+
+  if (fetchSite) {
     return error("invalid origin", 403)
   }
-  return null
+
+  return error("same-origin browser request required", 403)
+}
+
+export function withSecurityHeaders(resp: Response): Response {
+  try {
+    setSecurityHeaders(resp.headers)
+    return resp
+  } catch {
+    const out = new Response(resp.body, resp)
+    setSecurityHeaders(out.headers)
+    return out
+  }
+}
+
+function setSecurityHeaders(headers: Headers) {
+  headers.set(
+    "content-security-policy",
+    [
+      "default-src 'self'",
+      "base-uri 'self'",
+      "object-src 'none'",
+      "frame-ancestors 'none'",
+      "form-action 'self'",
+      "script-src 'self' 'unsafe-inline'",
+      "style-src 'self' 'unsafe-inline'",
+      "img-src 'self' data: https:",
+      "font-src 'self' data:",
+      "connect-src 'self' https://api.github.com",
+      "upgrade-insecure-requests",
+    ].join("; "),
+  )
+  headers.set("strict-transport-security", "max-age=31536000; includeSubDomains")
+  headers.set("x-content-type-options", "nosniff")
+  headers.set("x-frame-options", "DENY")
+  headers.set("referrer-policy", "strict-origin-when-cross-origin")
+  headers.set(
+    "permissions-policy",
+    "camera=(), microphone=(), geolocation=(), payment=()",
+  )
 }
 
 export function requireJson(req: Request): Response | null {
