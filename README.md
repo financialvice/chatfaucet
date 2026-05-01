@@ -15,7 +15,12 @@
 ## quirks
 - must set `instructions`, `store: false`, `stream: true` (see [docs](https://chatfaucet.com/docs))
 - probably other quirks, if you find please PR
-- I don't recommend using this for powering inference for externally-facing apps, I think that probably violates [TOS](https://openai.com/policies/row-terms-of-use/) and is low aura, just use this for personal apps/fun things
+
+## developer apps
+- create a developer app in the dashboard to let your users bring their own ChatGPT account for inference
+- users visit your app's Chat Faucet connect URL and come back to your callback with a `connection_id`
+- your backend calls `/v1/responses` with `Authorization: Bearer chf_app_...` and `ChatFaucet-Connection: conn_...`
+- see `examples/developer-app-fixture.mjs` for a tiny runnable integration test
 
 ## privacy and security
 - to make things easy, this service stores encrypted ChatGPT OAuth tokens from the browser sign-in flow and auto-refreshes them for gateway requests

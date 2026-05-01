@@ -34,8 +34,55 @@ The ChatGPT Codex backend does not accept the SDK shorthand string form
 ## What this is NOT
 
 - Not a general-purpose OpenAI proxy. Only the Responses API shape is served.
-- Not a multi-tenant billing system. One ChatGPT account = one gateway; the quota is whatever your ChatGPT plan gives you.
 - Not for non-Responses endpoints: no `/v1/chat/completions`, no `/v1/images/generations` — use image generation as a **tool** on `/v1/responses`.
+
+## Developer apps
+
+Developer apps let your users bring their own ChatGPT account for inference
+without pasting a personal Chat Faucet API key into your app.
+
+1. Sign in to Chat Faucet.
+2. Create a developer app in the dashboard with your callback URL.
+3. Save the one-time `chf_app_...` app key.
+4. Send users to:
+
+```text
+https://chatfaucet.com/connect/<app_id>?redirect_uri=<your_callback>&state=<opaque_state>
+```
+
+After the user signs in with ChatGPT, or continues from an existing Chat Faucet
+session, Chat Faucet redirects to your registered callback:
+
+```text
+https://your-app.example/callback?connection_id=conn_...&chatfaucet_app_id=app_...&state=...
+```
+
+Store `connection_id` on your user record. Then call the normal Responses API
+with your app key and the user's connection id:
+
+```bash
+curl -N https://chatfaucet.com/v1/responses \
+  -H "Authorization: Bearer $CHATFAUCET_APP_KEY" \
+  -H "ChatFaucet-Connection: $CHATFAUCET_CONNECTION_ID" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "gpt-5.5",
+    "instructions": "",
+    "input": [
+      {"type": "message", "role": "user",
+       "content": [{"type": "input_text", "text": "Say hi"}]}
+    ],
+    "stream": true,
+    "store": false
+  }'
+```
+
+There is a runnable fixture in the repo:
+
+```bash
+CHATFAUCET_APP_ID=app_... CHATFAUCET_APP_KEY=chf_app_... \
+  bun examples/developer-app-fixture.mjs
+```
 
 ## Agent setup
 

@@ -392,6 +392,10 @@ Authorization: Bearer <your api key>`}</pre>
 
       <div style={{ height: "1rem" }} />
 
+      <DeveloperAppsSection />
+
+      <div style={{ height: "1rem" }} />
+
       <Card title="ACCOUNT">
         <RowSpaceBetween className={styles.accountRow}>
           <span style={{ opacity: 0.7 }}>
@@ -463,6 +467,169 @@ interface Limit {
   pct: number;
   resetIn?: number;
   used?: number;
+}
+
+interface DeveloperAppPublic {
+  app_id: string;
+  created_at: number;
+  name: string;
+  redirect_uri: string;
+  updated_at: number;
+}
+
+function DeveloperAppsSection() {
+  const queryClient = useQueryClient();
+  const [appName, setAppName] = useState("");
+  const [appRedirectUri, setAppRedirectUri] = useState("");
+  const [newAppKey, setNewAppKey] = useState<string | null>(null);
+  const [newAppConnectUrl, setNewAppConnectUrl] = useState<string | null>(null);
+  const [actionErr, setActionErr] = useState<string | null>(null);
+  const [creating, setCreating] = useState(false);
+  const { data: appsData, error: appsErrorObj } = useQuery({
+    queryKey: ["developer-apps"],
+    queryFn: () => getJson<{ apps: DeveloperAppPublic[] }>("/api/apps"),
+    staleTime: 30_000,
+  });
+  const apps = appsData?.apps ?? null;
+  const appsErr = appsErrorObj ? messageFromError(appsErrorObj) : null;
+
+  async function createApp() {
+    if (creating) return;
+    try {
+      setCreating(true);
+      setActionErr(null);
+      const r = await postJson<{
+        api_key: string;
+        app: DeveloperAppPublic;
+        connect_url: string;
+      }>("/api/apps", {
+        name: appName || "My app",
+        redirect_uri: appRedirectUri,
+      });
+      setNewAppKey(r.api_key);
+      setNewAppConnectUrl(r.connect_url);
+      setAppName("");
+      setAppRedirectUri("");
+      queryClient.invalidateQueries({ queryKey: ["developer-apps"] });
+    } catch (e) {
+      setActionErr(`Couldn't create developer app: ${messageFromError(e)}`);
+    } finally {
+      setCreating(false);
+    }
+  }
+
+  return (
+    <Card title="DEVELOPER APPS">
+      <p style={{ opacity: 0.75, marginBottom: "0.75rem" }}>
+        Let another app send each user through Chat Faucet, then call the API
+        with an app key and that user's connection id.
+      </p>
+      {actionErr && (
+        <p style={{ color: "var(--ansi-9-red)", marginBottom: "0.75rem" }}>
+          {actionErr}
+        </p>
+      )}
+      <div style={{ display: "grid", gap: "0.5rem" }}>
+        <input
+          autoCapitalize="off"
+          autoCorrect="off"
+          maxLength={80}
+          onChange={(e) => setAppName(e.target.value)}
+          placeholder="app name"
+          spellCheck={false}
+          style={inputStyle}
+          type="text"
+          value={appName}
+        />
+        <input
+          autoCapitalize="off"
+          autoCorrect="off"
+          onChange={(e) => setAppRedirectUri(e.target.value)}
+          placeholder="redirect URI, e.g. http://localhost:8789/callback"
+          spellCheck={false}
+          style={inputStyle}
+          type="url"
+          value={appRedirectUri}
+        />
+        <div style={{ width: "18ch" }}>
+          <Button isDisabled={creating} onClick={createApp}>
+            {creating ? "Creating" : "Create app"}
+          </Button>
+        </div>
+      </div>
+
+      {newAppKey && (
+        <div
+          style={{
+            marginTop: "1rem",
+            padding: "calc(var(--theme-line-height-base) * 0.5rem) 1ch",
+            background: "var(--theme-focused-foreground-subdued)",
+            color: "var(--theme-text)",
+            boxShadow: "inset 0 0 0 2px var(--theme-focused-foreground)",
+          }}
+        >
+          <p style={{ marginBottom: "0.5rem" }}>
+            <strong>Save this app key now</strong> — it won't be shown again.
+          </p>
+          <p style={{ margin: "0.5rem 0", wordBreak: "break-all" }}>
+            <code>{newAppKey}</code>
+          </p>
+          {newAppConnectUrl && (
+            <p style={{ margin: "0.5rem 0", wordBreak: "break-all" }}>
+              Connect URL: <code>{newAppConnectUrl}</code>
+            </p>
+          )}
+        </div>
+      )}
+
+      <div style={{ height: "1rem" }} />
+      {appsErr ? (
+        <p style={{ color: "var(--ansi-9-red)" }}>{appsErr}</p>
+      ) : apps == null ? (
+        <span>
+          Loading <BlockLoader mode={1} />
+        </span>
+      ) : apps.length === 0 ? (
+        <span>No developer apps yet.</span>
+      ) : (
+        <div style={{ overflowX: "auto" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead>
+              <tr
+                style={{
+                  background: "var(--ansi-240-gray-35)",
+                  color: "var(--color-white)",
+                }}
+              >
+                <td style={thStyle}>NAME</td>
+                <td style={thStyle}>APP ID</td>
+                <td style={thStyle}>REDIRECT</td>
+                <td style={thStyle}>CREATED</td>
+              </tr>
+            </thead>
+            <tbody>
+              {apps.map((app) => (
+                <tr key={app.app_id}>
+                  <td style={nameTdStyle} title={app.name}>
+                    {app.name}
+                  </td>
+                  <td style={tdStyle}>
+                    <code>{app.app_id}</code>
+                  </td>
+                  <td style={nameTdStyle} title={app.redirect_uri}>
+                    {app.redirect_uri}
+                  </td>
+                  <td style={tdStyle} title={absDate(app.created_at)}>
+                    {relDate(app.created_at)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </Card>
+  );
 }
 
 function UsageMeter({ data }: { data: unknown }) {

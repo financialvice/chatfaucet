@@ -4,6 +4,11 @@ import {
   deleteAccountBySession,
 } from "./routes-account";
 import {
+  createDeveloperApp,
+  handleConnect,
+  listDeveloperApps,
+} from "./routes-apps";
+import {
   authStatus,
   handleDevicePoll,
   handleDeviceStart,
@@ -80,6 +85,36 @@ function handleApi(
   if (p === "/api/account" && request.method === "DELETE")
     return deleteAccountBySession(request, env);
 
+  const apps = handleAppsApi(p, request, env);
+  if (apps) return apps;
+
+  const cli = handleCliApi(p, request, env);
+  if (cli) return cli;
+
+  if (p === "/api/docs") return listDocs();
+  const docMatch = p.match(/^\/api\/docs\/([a-z0-9-]+)$/);
+  if (docMatch) return getDoc(docMatch[1]!, request);
+
+  return null;
+}
+
+function handleAppsApi(
+  p: string,
+  request: Request,
+  env: Env
+): Response | Promise<Response> | null {
+  if (p === "/api/apps" && request.method === "GET")
+    return listDeveloperApps(request, env);
+  if (p === "/api/apps" && request.method === "POST")
+    return createDeveloperApp(request, env);
+  return null;
+}
+
+function handleCliApi(
+  p: string,
+  request: Request,
+  env: Env
+): Response | Promise<Response> | null {
   if (p === "/api/cli/upload-tokens" && request.method === "POST")
     return cliUploadTokens(request, env);
   if (p === "/api/cli/existing-login" && request.method === "POST")
@@ -91,11 +126,6 @@ function handleApi(
   const cliSignInMatch = p.match(/^\/api\/cli\/sign-in\/([^/]+)$/);
   if (cliSignInMatch && request.method === "GET")
     return cliBrowserSignIn(cliSignInMatch[1]!, env);
-
-  if (p === "/api/docs") return listDocs();
-  const docMatch = p.match(/^\/api\/docs\/([a-z0-9-]+)$/);
-  if (docMatch) return getDoc(docMatch[1]!, request);
-
   return null;
 }
 
@@ -145,6 +175,11 @@ async function handleRequest(
   }
 
   if (p === "/healthz") return new Response("ok");
+
+  const connectMatch = p.match(/^\/connect\/([^/]+)$/);
+  if (connectMatch && request.method === "GET") {
+    return handleConnect(request, env, connectMatch[1]!);
+  }
 
   const v1 = handleV1(p, request, env, ctx);
   if (v1) return v1;

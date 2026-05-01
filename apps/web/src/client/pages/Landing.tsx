@@ -60,6 +60,7 @@ export function Landing({ onAuthed }: { onAuthed: () => void }) {
       }
       try {
         const r = await postJson<{
+          redirectTo?: string | null;
           status: "pending" | "success" | "error";
           error?: string;
         }>("/api/auth/device-poll", {
@@ -67,6 +68,10 @@ export function Landing({ onAuthed }: { onAuthed: () => void }) {
           user_code: device.user_code,
         });
         if (r.status === "success") {
+          if (r.redirectTo) {
+            window.location.href = r.redirectTo;
+            return;
+          }
           onAuthed();
           return;
         }

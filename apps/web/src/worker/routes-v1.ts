@@ -1,4 +1,5 @@
 import { getActiveAccountByApiKey } from "./index-kv";
+import { getActiveAppByApiKey, getAppConnection } from "./routes-apps";
 import { error, rateLimit } from "./util";
 
 const CODEX_PREFIX = "/codex";
@@ -13,16 +14,47 @@ function getStub(env: Env, accountId: string) {
 async function authAndResolve(
   req: Request,
   env: Env
-): Promise<{ accountId: string; keyId: string } | Response> {
+): Promise<
+  { accountId: string; keyId: string; rateLimitSubject: string } | Response
+> {
   const auth = req.headers.get("authorization") || "";
   const m = auth.match(/^Bearer\s+(.+)$/i);
   if (!m) return error("missing Bearer token", 401);
   const apiKey = m[1]!.trim();
 
   const row = await getActiveAccountByApiKey(env, apiKey);
-  if (!row) return error("invalid api key", 401);
+  if (row) {
+    return {
+      accountId: row.account_id,
+      keyId: row.key_id,
+      rateLimitSubject: row.key_id,
+    };
+  }
 
-  return { accountId: row.account_id, keyId: row.key_id };
+  const app = await getActiveAppByApiKey(env, apiKey);
+  if (!app) return error("invalid api key", 401);
+
+  const connectionId =
+    req.headers.get("chatfaucet-connection") ??
+    req.headers.get("x-chatfaucet-connection");
+  if (!connectionId) {
+    return error("missing ChatFaucet-Connection header", 401);
+  }
+
+  const connection = await getAppConnection(env, connectionId.trim());
+  if (
+    !connection ||
+    connection.app_id !== app.app_id ||
+    connection.revoked_at != null
+  ) {
+    return error("invalid app connection", 401);
+  }
+
+  return {
+    accountId: connection.account_id,
+    keyId: app.key_id,
+    rateLimitSubject: `${app.app_id}:${app.key_id}:${connection.connection_id}`,
+  };
 }
 
 async function proxy(
@@ -107,7 +139,14 @@ export async function handleResponses(
 ): Promise<Response> {
   const a = await authAndResolve(req, env);
   if (a instanceof Response) return a;
-  const limited = await rateLimit(env, req, "v1-responses", 120, 60, a.keyId);
+  const limited = await rateLimit(
+    env,
+    req,
+    "v1-responses",
+    120,
+    60,
+    a.rateLimitSubject
+  );
   if (limited) return limited;
   ctx.waitUntil(getStub(env, a.accountId).touchKey(a.keyId));
   return proxy(req, env, a.accountId, `${CODEX_PREFIX}/responses`);
@@ -120,7 +159,14 @@ export async function handleModels(
 ): Promise<Response> {
   const a = await authAndResolve(req, env);
   if (a instanceof Response) return a;
-  const limited = await rateLimit(env, req, "v1-models", 120, 60, a.keyId);
+  const limited = await rateLimit(
+    env,
+    req,
+    "v1-models",
+    120,
+    60,
+    a.rateLimitSubject
+  );
   if (limited) return limited;
   ctx.waitUntil(getStub(env, a.accountId).touchKey(a.keyId));
   return proxy(req, env, a.accountId, `${CODEX_PREFIX}/models`, {
@@ -136,7 +182,14 @@ export async function handleUsage(
 ): Promise<Response> {
   const a = await authAndResolve(req, env);
   if (a instanceof Response) return a;
-  const limited = await rateLimit(env, req, "v1-usage", 120, 60, a.keyId);
+  const limited = await rateLimit(
+    env,
+    req,
+    "v1-usage",
+    120,
+    60,
+    a.rateLimitSubject
+  );
   if (limited) return limited;
   ctx.waitUntil(getStub(env, a.accountId).touchKey(a.keyId));
   return proxy(req, env, a.accountId, `${WHAM_PREFIX}/usage`, {

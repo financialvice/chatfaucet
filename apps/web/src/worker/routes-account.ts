@@ -29,6 +29,39 @@ async function deleteIndexObjectsForAccount(
   } while (cursor);
 }
 
+async function deleteDeveloperAppsForOwner(env: Env, accountId: string) {
+  let cursor: string | undefined;
+  do {
+    const page = await env.INDEX.list({
+      cursor,
+      prefix: `owner-app:${accountId}:`,
+    });
+    await Promise.all(
+      page.keys.map(async (key) => {
+        const item = await env.INDEX.get<{ app_id?: string }>(key.name, "json");
+        if (item?.app_id) {
+          await env.INDEX.delete(`app:${item.app_id}`);
+          const keyPage = await env.INDEX.list({
+            prefix: `app:${item.app_id}:key:`,
+          });
+          await Promise.all(
+            keyPage.keys.map(async (k) => {
+              const rec = await env.INDEX.get<{ hash?: string }>(
+                k.name,
+                "json"
+              );
+              if (rec?.hash) await env.INDEX.delete(`appkey:${rec.hash}`);
+              await env.INDEX.delete(k.name);
+            })
+          );
+        }
+        await env.INDEX.delete(key.name);
+      })
+    );
+    cursor = page.list_complete ? undefined : page.cursor;
+  } while (cursor);
+}
+
 export async function deleteAccountData(env: Env, accountId: string) {
   const stub = getStub(env, accountId);
   const keys = await stub.listKeys();
@@ -37,6 +70,9 @@ export async function deleteAccountData(env: Env, accountId: string) {
   await Promise.all([
     deleteIndexObjectsForAccount(env, "sess:", accountId),
     deleteIndexObjectsForAccount(env, "cli-signin:", accountId),
+    deleteIndexObjectsForAccount(env, "conn:", accountId),
+    deleteIndexObjectsForAccount(env, "app-conn:", accountId),
+    deleteDeveloperAppsForOwner(env, accountId),
   ]);
   return { deleted_keys: keys.length };
 }
