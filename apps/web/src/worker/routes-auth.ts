@@ -1,5 +1,4 @@
 import { createSession, deleteSession, getSession } from "./index-kv";
-import { clearConnectReturnCookie, getConnectReturn } from "./routes-apps";
 import {
   type DevicePollInput,
   devicePollOnce,
@@ -94,15 +93,11 @@ export async function handleDevicePoll(
     account_id: up.accountId,
     email: up.email,
   });
-  const redirectTo = getConnectReturn(req);
 
   const headers = new Headers();
   headers.append("set-cookie", mkSessionCookie(env, sid));
-  if (redirectTo) {
-    headers.append("set-cookie", clearConnectReturnCookie(env));
-  }
 
-  return json({ status: "success", email: up.email, redirectTo }, 200, headers);
+  return json({ status: "success", email: up.email }, 200, headers);
 }
 
 export async function handleSignOut(req: Request, env: Env): Promise<Response> {

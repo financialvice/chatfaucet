@@ -5,8 +5,9 @@ import {
 } from "./routes-account";
 import {
   createDeveloperApp,
-  handleConnect,
   listDeveloperApps,
+  pollAppConnect,
+  startAppConnect,
 } from "./routes-apps";
 import {
   authStatus,
@@ -107,6 +108,10 @@ function handleAppsApi(
     return listDeveloperApps(request, env);
   if (p === "/api/apps" && request.method === "POST")
     return createDeveloperApp(request, env);
+  if (p === "/api/apps/connect/start" && request.method === "POST")
+    return startAppConnect(request, env);
+  if (p === "/api/apps/connect/poll" && request.method === "POST")
+    return pollAppConnect(request, env);
   return null;
 }
 
@@ -175,11 +180,6 @@ async function handleRequest(
   }
 
   if (p === "/healthz") return new Response("ok");
-
-  const connectMatch = p.match(/^\/connect\/([^/]+)$/);
-  if (connectMatch && request.method === "GET") {
-    return handleConnect(request, env, connectMatch[1]!);
-  }
 
   const v1 = handleV1(p, request, env, ctx);
   if (v1) return v1;

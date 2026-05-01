@@ -18,7 +18,9 @@
 
 ## developer apps
 - create a developer app in the dashboard to let your users bring their own ChatGPT account for inference
-- users visit your app's Chat Faucet connect URL and come back to your callback with a `connection_id`
+- your backend starts a connect session and gets a ChatGPT device code plus an OpenAI auth URL
+- your app should show the device code first, then offer a "Continue to ChatGPT" button; do not immediately redirect users away before they can see the code
+- your backend polls Chat Faucet for a `connection_id`; users never need to see or think about Chat Faucet
 - your backend calls `/v1/responses` with `Authorization: Bearer chf_app_...` and `ChatFaucet-Connection: conn_...`
 - see `examples/developer-app-fixture.mjs` for a tiny runnable integration test
 

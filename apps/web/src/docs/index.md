@@ -42,23 +42,83 @@ Developer apps let your users bring their own ChatGPT account for inference
 without pasting a personal Chat Faucet API key into your app.
 
 1. Sign in to Chat Faucet.
-2. Create a developer app in the dashboard with your callback URL.
+2. Create a developer app in the dashboard.
 3. Save the one-time `chf_app_...` app key.
-4. Send users to:
+4. From your backend, start a connect session:
 
-```text
-https://chatfaucet.com/connect/<app_id>?redirect_uri=<your_callback>&state=<opaque_state>
+```bash
+curl https://chatfaucet.com/api/apps/connect/start \
+  -H "Authorization: Bearer $CHATFAUCET_APP_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"state":"your-user-or-csrf-state"}'
 ```
 
-After the user signs in with ChatGPT, or continues from an existing Chat Faucet
-session, Chat Faucet redirects to your registered callback:
+Chat Faucet returns both `user_code` and a `verification_uri_complete` URL on
+`auth.openai.com`. Your app must show the device code before sending the user
+to OpenAI, because OpenAI may ask them to enter it on the next screen. Treat
+Chat Faucet as backend infrastructure: the user-facing flow should mention
+ChatGPT/OpenAI, not Chat Faucet.
 
-```text
-https://your-app.example/callback?connection_id=conn_...&chatfaucet_app_id=app_...&state=...
+Good user-facing flow:
+
+1. The user clicks "Sign in with ChatGPT" in your app.
+2. Your backend calls `/api/apps/connect/start`.
+3. Your app shows a waiting screen with:
+   - the device code from `user_code`, large enough to read and copy
+   - a button or link labeled "Continue to ChatGPT" that opens
+     `verification_uri_complete`
+   - a short note that they should enter the displayed code if OpenAI asks
+4. Your app keeps polling `/api/apps/connect/poll` from the waiting screen.
+5. When polling returns `connection_id`, store it on your user record and move
+   them back into your app.
+
+Avoid immediately redirecting the tab to OpenAI before showing the code. That
+can leave users on OpenAI's code-entry page with no visible code. The
+recommended version is a two-step handoff: first render the waiting screen,
+then let the user choose "Continue to ChatGPT" from that screen.
+
+Minimal browser behavior:
+
+```html
+<p>Device code: <strong id="code"></strong></p>
+<a id="continue" target="_blank" rel="noopener">Continue to ChatGPT</a>
+<p id="status">Waiting...</p>
 ```
 
-Store `connection_id` on your user record. Then call the normal Responses API
-with your app key and the user's connection id:
+```js
+// Returned by your backend after it calls /api/apps/connect/start.
+const connect = {
+  connect_auth_id: "cna_...",
+  user_code: "DIAB-12345",
+  verification_uri_complete: "https://auth.openai.com/codex/device?code=...",
+};
+
+document.querySelector("#code").textContent = connect.user_code;
+document.querySelector("#continue").href = connect.verification_uri_complete;
+
+setInterval(async () => {
+  const poll = await fetch("/your-backend/chatgpt-connect/poll", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ connect_auth_id: connect.connect_auth_id }),
+  }).then((r) => r.json());
+
+  if (poll.status === "success") {
+    location.href = "/app";
+  }
+}, 3000);
+```
+
+```bash
+curl https://chatfaucet.com/api/apps/connect/poll \
+  -H "Authorization: Bearer $CHATFAUCET_APP_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"connect_auth_id":"cna_..."}'
+```
+
+When the user completes ChatGPT sign-in, poll returns `connection_id`. Store
+that id on your user record. Then call the normal Responses API with your app
+key and the user's connection id:
 
 ```bash
 curl -N https://chatfaucet.com/v1/responses \
@@ -80,8 +140,7 @@ curl -N https://chatfaucet.com/v1/responses \
 There is a runnable fixture in the repo:
 
 ```bash
-CHATFAUCET_APP_ID=app_... CHATFAUCET_APP_KEY=chf_app_... \
-  bun examples/developer-app-fixture.mjs
+CHATFAUCET_APP_KEY=chf_app_... bun examples/developer-app-fixture.mjs
 ```
 
 ## Agent setup

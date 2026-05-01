@@ -1,4 +1,5 @@
 import { getSession } from "./index-kv";
+import { devicePollOnce, deviceStart, upsertAccount } from "./signin";
 import {
   error,
   json,
@@ -7,21 +8,18 @@ import {
   rateLimit,
   requireJson,
   requireSameOrigin,
-  setCookieHeader,
   sha256Hex,
 } from "./util";
 
 const APP_KEY_PREFIX = "chf_app_";
 const SESSION_COOKIE = "chatfaucet_session";
-const CONNECT_RETURN_COOKIE = "chatfaucet_connect_return";
-const CONNECT_RETURN_TTL_SECONDS = 15 * 60;
+const CONNECT_SESSION_TTL_SECONDS = 15 * 60;
 
 export interface DeveloperApp {
   app_id: string;
   created_at: number;
   name: string;
   owner_account_id: string;
-  redirect_uri: string;
   updated_at: number;
 }
 
@@ -48,6 +46,15 @@ export interface AppKeyIndexRow {
   key_id: string;
 }
 
+export interface AppConnectSession {
+  app_id: string;
+  connect_auth_id: string;
+  created_at: number;
+  device_auth_id: string;
+  state: string | null;
+  user_code: string;
+}
+
 function mintAppKey(): string {
   return `${APP_KEY_PREFIX}${randomSlug(48)}`;
 }
@@ -57,24 +64,8 @@ function publicApp(app: DeveloperApp) {
     app_id: app.app_id,
     created_at: app.created_at,
     name: app.name,
-    redirect_uri: app.redirect_uri,
     updated_at: app.updated_at,
   };
-}
-
-function safeRedirectUri(input: unknown): string | null {
-  if (typeof input !== "string") return null;
-  let url: URL;
-  try {
-    url = new URL(input);
-  } catch {
-    return null;
-  }
-  if (!(url.protocol === "https:" || url.hostname === "localhost")) {
-    return null;
-  }
-  url.hash = "";
-  return url.toString();
 }
 
 function appKeyIndexKey(hash: string): string {
@@ -145,35 +136,46 @@ export async function getAppConnection(
   )) as AppConnection | null;
 }
 
-export function connectReturnCookie(env: Env, pathAndQuery: string): string {
-  return setCookieHeader(
-    CONNECT_RETURN_COOKIE,
-    encodeURIComponent(pathAndQuery),
-    {
-      domain: env.APP_HOSTNAME,
-      maxAge: CONNECT_RETURN_TTL_SECONDS,
-      sameSite: "Lax",
-    }
+async function authAppKey(
+  req: Request,
+  env: Env
+): Promise<{ appId: string; keyId: string } | Response> {
+  const auth = req.headers.get("authorization") || "";
+  const m = auth.match(/^Bearer\s+(.+)$/i);
+  if (!m) return error("missing Bearer token", 401);
+
+  const app = await getActiveAppByApiKey(env, m[1]!.trim());
+  if (!app) return error("invalid app key", 401);
+
+  return { appId: app.app_id, keyId: app.key_id };
+}
+
+function connectSessionKey(authId: string): string {
+  return `app-connect:${authId}`;
+}
+
+async function createConnection(
+  env: Env,
+  appId: string,
+  accountId: string,
+  email: string | null
+): Promise<AppConnection> {
+  const connectionId = `conn_${randomSlug(32)}`;
+  const now = Math.floor(Date.now() / 1000);
+  const connection: AppConnection = {
+    account_id: accountId,
+    app_id: appId,
+    connection_id: connectionId,
+    created_at: now,
+    email,
+    revoked_at: null,
+  };
+  await env.INDEX.put(`conn:${connectionId}`, JSON.stringify(connection));
+  await env.INDEX.put(
+    `app-conn:${appId}:${connectionId}`,
+    JSON.stringify({ connection_id: connectionId, account_id: accountId })
   );
-}
-
-export function clearConnectReturnCookie(env: Env): string {
-  return setCookieHeader(CONNECT_RETURN_COOKIE, "", {
-    domain: env.APP_HOSTNAME,
-    maxAge: 0,
-    sameSite: "Lax",
-  });
-}
-
-export function getConnectReturn(req: Request): string | null {
-  const raw = parseCookie(req.headers.get("cookie"), CONNECT_RETURN_COOKIE);
-  if (!raw) return null;
-  try {
-    const path = decodeURIComponent(raw);
-    return path.startsWith("/connect/") ? path : null;
-  } catch {
-    return null;
-  }
+  return connection;
 }
 
 export async function listDeveloperApps(
@@ -233,16 +235,8 @@ export async function createDeveloperApp(
 
   const body = (await req.json().catch(() => ({}))) as {
     name?: string;
-    redirect_uri?: string;
   };
   const name = (body.name ?? "My app").trim().slice(0, 80) || "My app";
-  const redirectUri = safeRedirectUri(body.redirect_uri);
-  if (!redirectUri) {
-    return error(
-      "redirect_uri must be a valid https URL or localhost URL",
-      400
-    );
-  }
 
   const now = Math.floor(Date.now() / 1000);
   const appId = `app_${randomSlug(24)}`;
@@ -254,7 +248,6 @@ export async function createDeveloperApp(
     created_at: now,
     name,
     owner_account_id: sess.account_id,
-    redirect_uri: redirectUri,
     updated_at: now,
   };
   const key: DeveloperAppKey = {
@@ -277,63 +270,126 @@ export async function createDeveloperApp(
     app: publicApp(app),
     api_key: rawKey,
     key_id: keyId,
-    connect_url: `https://${env.APP_HOSTNAME}/connect/${appId}`,
   });
 }
 
-export async function handleConnect(
+export async function startAppConnect(
   req: Request,
-  env: Env,
-  appId: string
+  env: Env
 ): Promise<Response> {
-  const app = await getDeveloperApp(env, appId);
+  const auth = await authAppKey(req, env);
+  if (auth instanceof Response) return auth;
+
+  const badJson = requireJson(req);
+  if (badJson) return badJson;
+
+  const app = await getDeveloperApp(env, auth.appId);
   if (!app) return error("app not found", 404);
 
-  const url = new URL(req.url);
-  const redirectUri = safeRedirectUri(url.searchParams.get("redirect_uri"));
-  if (redirectUri && redirectUri !== app.redirect_uri) {
-    return error("redirect_uri does not match the registered app", 400);
-  }
+  const limited = await rateLimit(
+    env,
+    req,
+    "app-connect-start",
+    60,
+    60,
+    auth.appId
+  );
+  if (limited) return limited;
 
-  const sid = parseCookie(req.headers.get("cookie"), SESSION_COOKIE);
-  const sess = sid ? await getSession(env, sid) : null;
-  if (!sess) {
-    return new Response(null, {
-      status: 303,
-      headers: {
-        location: "/",
-        "set-cookie": connectReturnCookie(env, url.pathname + url.search),
-      },
-    });
-  }
-
-  const connectionId = `conn_${randomSlug(32)}`;
-  const now = Math.floor(Date.now() / 1000);
-  const connection: AppConnection = {
-    account_id: sess.account_id,
-    app_id: app.app_id,
-    connection_id: connectionId,
-    created_at: now,
-    email: sess.email,
-    revoked_at: null,
+  const body = (await req.json().catch(() => ({}))) as { state?: string };
+  const deviceResp = await deviceStart();
+  if (!deviceResp.ok) return deviceResp;
+  const device = (await deviceResp.json()) as {
+    device_auth_id: string;
+    interval: number;
+    user_code: string;
+    verification_uri: string;
+    verification_uri_complete: string;
   };
-  await env.INDEX.put(`conn:${connectionId}`, JSON.stringify(connection));
+  const connectAuthId = `cna_${randomSlug(32)}`;
+  const session: AppConnectSession = {
+    app_id: app.app_id,
+    connect_auth_id: connectAuthId,
+    created_at: Math.floor(Date.now() / 1000),
+    device_auth_id: device.device_auth_id,
+    state:
+      typeof body.state === "string" ? body.state.slice(0, 500) || null : null,
+    user_code: device.user_code,
+  };
   await env.INDEX.put(
-    `app-conn:${app.app_id}:${connectionId}`,
-    JSON.stringify({ connection_id: connectionId, account_id: sess.account_id })
+    connectSessionKey(connectAuthId),
+    JSON.stringify(session),
+    {
+      expirationTtl: CONNECT_SESSION_TTL_SECONDS,
+    }
   );
 
-  const out = new URL(app.redirect_uri);
-  out.searchParams.set("connection_id", connectionId);
-  out.searchParams.set("chatfaucet_app_id", app.app_id);
-  const state = url.searchParams.get("state");
-  if (state) out.searchParams.set("state", state);
+  return json({
+    app_id: app.app_id,
+    connect_auth_id: connectAuthId,
+    interval: device.interval,
+    state: session.state,
+    user_code: device.user_code,
+    verification_uri: device.verification_uri,
+    verification_uri_complete: device.verification_uri_complete,
+  });
+}
 
-  return new Response(null, {
-    status: 303,
-    headers: {
-      location: out.toString(),
-      "set-cookie": clearConnectReturnCookie(env),
-    },
+export async function pollAppConnect(
+  req: Request,
+  env: Env
+): Promise<Response> {
+  const auth = await authAppKey(req, env);
+  if (auth instanceof Response) return auth;
+
+  const badJson = requireJson(req);
+  if (badJson) return badJson;
+
+  const limited = await rateLimit(
+    env,
+    req,
+    "app-connect-poll",
+    180,
+    60,
+    auth.appId
+  );
+  if (limited) return limited;
+
+  const body = (await req.json().catch(() => null)) as {
+    connect_auth_id?: string;
+  } | null;
+  if (!body?.connect_auth_id) return error("connect_auth_id required", 400);
+
+  const session = (await env.INDEX.get(
+    connectSessionKey(body.connect_auth_id),
+    "json"
+  )) as AppConnectSession | null;
+  if (!session || session.app_id !== auth.appId) {
+    return error("connect session expired or not found", 404);
+  }
+
+  const r = await devicePollOnce({
+    device_auth_id: session.device_auth_id,
+    user_code: session.user_code,
+  });
+  if (r.status !== "success") {
+    return json(r, r.status === "error" ? 500 : 200);
+  }
+
+  const up = await upsertAccount(env, r.tokens!, r.email ?? null);
+  const connection = await createConnection(
+    env,
+    session.app_id,
+    up.accountId,
+    up.email
+  );
+  await env.INDEX.delete(connectSessionKey(session.connect_auth_id));
+
+  return json({
+    status: "success",
+    app_id: session.app_id,
+    connection_id: connection.connection_id,
+    email: connection.email,
+    state: session.state,
   });
 }

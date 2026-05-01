@@ -473,16 +473,13 @@ interface DeveloperAppPublic {
   app_id: string;
   created_at: number;
   name: string;
-  redirect_uri: string;
   updated_at: number;
 }
 
 function DeveloperAppsSection() {
   const queryClient = useQueryClient();
   const [appName, setAppName] = useState("");
-  const [appRedirectUri, setAppRedirectUri] = useState("");
   const [newAppKey, setNewAppKey] = useState<string | null>(null);
-  const [newAppConnectUrl, setNewAppConnectUrl] = useState<string | null>(null);
   const [actionErr, setActionErr] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const { data: appsData, error: appsErrorObj } = useQuery({
@@ -501,15 +498,11 @@ function DeveloperAppsSection() {
       const r = await postJson<{
         api_key: string;
         app: DeveloperAppPublic;
-        connect_url: string;
       }>("/api/apps", {
         name: appName || "My app",
-        redirect_uri: appRedirectUri,
       });
       setNewAppKey(r.api_key);
-      setNewAppConnectUrl(r.connect_url);
       setAppName("");
-      setAppRedirectUri("");
       queryClient.invalidateQueries({ queryKey: ["developer-apps"] });
     } catch (e) {
       setActionErr(`Couldn't create developer app: ${messageFromError(e)}`);
@@ -521,8 +514,8 @@ function DeveloperAppsSection() {
   return (
     <Card title="DEVELOPER APPS">
       <p style={{ opacity: 0.75, marginBottom: "0.75rem" }}>
-        Let another app send each user through Chat Faucet, then call the API
-        with an app key and that user's connection id.
+        Let another app start ChatGPT sign-in from its own backend, then call
+        the API with an app key and that user's connection id.
       </p>
       {actionErr && (
         <p style={{ color: "var(--ansi-9-red)", marginBottom: "0.75rem" }}>
@@ -540,16 +533,6 @@ function DeveloperAppsSection() {
           style={inputStyle}
           type="text"
           value={appName}
-        />
-        <input
-          autoCapitalize="off"
-          autoCorrect="off"
-          onChange={(e) => setAppRedirectUri(e.target.value)}
-          placeholder="redirect URI, e.g. http://localhost:8789/callback"
-          spellCheck={false}
-          style={inputStyle}
-          type="url"
-          value={appRedirectUri}
         />
         <div style={{ width: "18ch" }}>
           <Button isDisabled={creating} onClick={createApp}>
@@ -574,11 +557,6 @@ function DeveloperAppsSection() {
           <p style={{ margin: "0.5rem 0", wordBreak: "break-all" }}>
             <code>{newAppKey}</code>
           </p>
-          {newAppConnectUrl && (
-            <p style={{ margin: "0.5rem 0", wordBreak: "break-all" }}>
-              Connect URL: <code>{newAppConnectUrl}</code>
-            </p>
-          )}
         </div>
       )}
 
@@ -603,7 +581,6 @@ function DeveloperAppsSection() {
               >
                 <td style={thStyle}>NAME</td>
                 <td style={thStyle}>APP ID</td>
-                <td style={thStyle}>REDIRECT</td>
                 <td style={thStyle}>CREATED</td>
               </tr>
             </thead>
@@ -615,9 +592,6 @@ function DeveloperAppsSection() {
                   </td>
                   <td style={tdStyle}>
                     <code>{app.app_id}</code>
-                  </td>
-                  <td style={nameTdStyle} title={app.redirect_uri}>
-                    {app.redirect_uri}
                   </td>
                   <td style={tdStyle} title={absDate(app.created_at)}>
                     {relDate(app.created_at)}
